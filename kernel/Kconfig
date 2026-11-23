@@ -75,11 +75,12 @@ config KSU_RESTRICTED_ROOT
 	depends on KSU
 	default y
 	help
-	  In the KSU SELinux domain, deny opening block devices for write,
-	  deny write/mmap(PROT_WRITE) on them, and deny init_module()/
-	  finit_module(). Normal Android (vold, update_engine, OTA) is not in
-	  that domain and is unaffected. ksud also drops the corresponding
-	  capabilities before exec'ing a su shell. This prevents a root shell
-	  from flashing a boot image or loading a module to obtain kernel R/W.
+	  Deny opening block devices for write, write/mmap(PROT_WRITE) on them,
+	  and init_module()/finit_module() for the KSU domain and for any uid-0
+	  task that lacks CAP_SYS_ADMIN/CAP_SYS_MODULE. That capability check
+	  survives a setcon escape from the permissive KSU domain. init, vold
+	  and update_engine keep both capabilities and are unaffected; the
+	  loader shell is the trust root and is not restricted. ksud and KSU
+	  module scripts are trusted and keep full credentials.
 
 endmenu

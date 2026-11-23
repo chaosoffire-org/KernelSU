@@ -21,7 +21,9 @@ nothing is written to any partition, and a reboot clears it.
 3. `ksud late-load` loads the KernelSU module.
 4. `post-load-check.sh` checks the guards; `harden.sh` optionally sets
    `modules_disabled=1` and restricts sysctls.
-5. Use `su`. No boot image, vbmeta or Knox fuse is touched.
+5. Use `su` from the manager/app. No boot image, vbmeta or Knox fuse is
+   touched. The loader shell itself is the trust root and is not restricted;
+   the restricted profile applies to `su` granted through KSU.
 
 ## Guards in this fork
 
@@ -31,9 +33,12 @@ nothing is written to any partition, and a reboot clears it.
   and encoded per-thread CPU clocks for every process, installed before root.
 - **Restricted root (C):** app profiles carry the capability mask; the kernel
   clamps `SYS_ADMIN/SYS_MODULE/SYS_RAWIO/MKNOD/MAC_*/SETPCAP` out of every
-  profile and forces the KSU SELinux domain. `ksu_guard` additionally denies
-  block-device write opens/writes/mmap and `init_module/finit_module` in that
-  domain. Default su has no mount, no module load, no raw block writes.
+  profile and forces the KSU SELinux domain. `ksu_guard` denies block-device
+  write opens/writes/mmap and `init_module/finit_module` for the KSU domain
+  **and for any uid-0 task that lacks `CAP_SYS_ADMIN`/`CAP_SYS_MODULE`**, so a
+  `setcon` escape from the permissive KSU domain does not bypass it. init/vold
+  keep both capabilities and are unaffected; the loader shell is the trust
+  root. ksud and KSU module scripts are trusted and keep full credentials.
 - **Stealth (C, `KSU_STEALTH`):** for app uids (>= 10000) outside the KSU
   domain, `openat/openat2/newfstatat/faccessat/faccessat2/readlinkat/statx`
   return `-ENOENT` for `/data/adb/ksu`, `/data/adb/modules`,
@@ -65,8 +70,8 @@ make -j12 drivers/kernelsu/
 directory is copied instead of symlinked, repair it or the build stops at
 `uapi/app_profile.h`.
 
-Manager signing: `KSU_EXPECTED_SIZE=0x052f`, certificate SHA-256
-`6efd8c76b150c7d9d33954e8665770c1740d323289ab362a826996544148e57f`
+Manager signing: `KSU_EXPECTED_SIZE=0x0330`, certificate SHA-256
+`fd26a29bc3c73d289b8c7c4775ba48d0b1f0d6a72c5de92cd7fdbc8649a1c06b`
 (alias `a5560`). The private key is kept outside the repo; CI reads it from
 the `KEYSTORE` secret.
 

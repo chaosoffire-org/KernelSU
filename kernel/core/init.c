@@ -151,6 +151,9 @@ int __init kernelsu_init(void)
     }
 
     ksu_syscall_hook_init();
+#if IS_ENABLED(CONFIG_KSU_CVE_2026_98260_GUARD)
+    cve_guard_init();
+#endif
 
     // Block modules early, before vendor modules are loaded in second stage.
     ksu_module_blacklist_init();
@@ -226,6 +229,9 @@ int __init kernelsu_init(void)
 void __exit kernelsu_exit(void)
 {
     // Phase 1: Stop all hooks first to prevent new callbacks
+#if IS_ENABLED(CONFIG_KSU_CVE_2026_98260_GUARD)
+    cve_guard_exit();
+#endif
     ksu_syscall_hook_manager_exit();
 
     ksu_supercalls_exit();

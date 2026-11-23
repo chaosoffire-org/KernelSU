@@ -2,8 +2,11 @@
 /*
  * Restricted root for KernelSU-dispatched su.
  *
- * Scoped to the KSU SELinux domain, so normal Android (vold, update_engine,
- * OTA) is unaffected. Inside that domain:
+ * Applies to the KSU SELinux domain and to uid-0 tasks that lack
+ * CAP_SYS_ADMIN/CAP_SYS_MODULE (the capability clamp survives a setcon escape
+ * from the permissive KSU domain). Normal Android (init/vold/update_engine/
+ * OTA) keeps both capabilities and is unaffected; the loader shell is the
+ * trust root and is not restricted.
  *   - opening a block device for write is denied (file_open);
  *   - write()/mmap(PROT_WRITE) on a block device is denied as backstop;
  *   - init_module()/finit_module() are denied, so a su shell cannot load a
@@ -15,6 +18,8 @@
  */
 #if IS_ENABLED(CONFIG_KSU_RESTRICTED_ROOT)
 
+#include <linux/capability.h>
+#include <linux/cred.h>
 #include <linux/errno.h>
 #include <linux/fs.h>
 #include <linux/kernel.h>
@@ -29,6 +34,22 @@
 #include "selinux/selinux.h"
 #include "klog.h"
 
+/*
+ * Restricted root is the KSU domain plus any uid-0 task that lacks the
+ * dangerous capabilities. The capability test survives a setcon/exec_sid
+ * escape from the permissive KSU domain because the capability bounding set
+ * was clamped at grant time. init/vold keep both capabilities and are not
+ * affected; the loader shell is the trust root.
+ */
+static bool ksu_guard_is_restricted(void)
+{
+	if (is_ksu_domain())
+		return true;
+	if (current_uid().val != 0)
+		return false;
+	return !capable(CAP_SYS_ADMIN) || !capable(CAP_SYS_MODULE);
+}
+
 static bool ksu_guard_block_write(struct file *file, bool write_access)
 {
 	struct inode *inode;
@@ -40,7 +61,7 @@ static bool ksu_guard_block_write(struct file *file, bool write_access)
 	if (!inode || !S_ISBLK(inode->i_mode))
 		return false;
 
-	return is_ksu_domain();
+	return ksu_guard_is_restricted();
 }
 
 static int ksu_guard_file_open(struct file *file);
@@ -92,7 +113,7 @@ static syscall_fn_t ksu_guard_orig_finit_module;
 
 static long ksu_guard_init_module(const struct pt_regs *regs)
 {
-	if (is_ksu_domain())
+	if (ksu_guard_is_restricted())
 		return -EPERM;
 	if (unlikely(!ksu_guard_orig_init_module))
 		return -ENOSYS;
@@ -101,7 +122,7 @@ static long ksu_guard_init_module(const struct pt_regs *regs)
 
 static long ksu_guard_finit_module(const struct pt_regs *regs)
 {
-	if (is_ksu_domain())
+	if (ksu_guard_is_restricted())
 		return -EPERM;
 	if (unlikely(!ksu_guard_orig_finit_module))
 		return -ENOSYS;

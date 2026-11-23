@@ -35,8 +35,10 @@
 
 static bool cve_guard_should_deny(int clockid)
 {
+	/* Positive clock IDs 4..7 are valid POSIX clocks; only the negative
+	 * CPU-clock encoding (make_thread_cpuclock) sets bit 2. */
 	return clockid == CVE_GUARD_CLOCK_THREAD_CPUTIME_ID ||
-	       (clockid & CVE_GUARD_CPUCLOCK_PERTHREAD_MASK) != 0;
+	       (clockid < 0 && (clockid & CVE_GUARD_CPUCLOCK_PERTHREAD_MASK) != 0);
 }
 
 static syscall_fn_t cve_guard_native_orig;
