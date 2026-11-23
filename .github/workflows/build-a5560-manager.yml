@@ -1,0 +1,85 @@
+name: Build A5560 Manager
+
+on:
+  push:
+    branches: [device/a5560zj1]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./manager
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install SDK, NDK and CMake
+        run: |
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          sdkmanager --install \
+            "platforms;android-37" \
+            "build-tools;37.0.0" \
+            "ndk;29.0.14206865" \
+            "cmake;3.22.1"
+
+      - name: Write signing config
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          test -n "$KEYSTORE_B64" || { echo "KEYSTORE secret missing"; exit 1; }
+          echo "$KEYSTORE_B64" | base64 -d > key.jks
+          {
+            echo "KEYSTORE_FILE=key.jks"
+            echo "KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD"
+            echo "KEY_ALIAS=$KEY_ALIAS"
+            echo "KEY_PASSWORD=$KEY_PASSWORD"
+          } >> gradle.properties
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Build release APK
+        run: ./gradlew clean assembleRelease
+
+      - name: Print expected kernel values
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: |
+          keytool -exportcert -alias "$KEY_ALIAS" -keystore key.jks \
+            -storepass "$KEYSTORE_PASSWORD" -file cert.der
+          echo "expected_size=0x$(printf '%04x' "$(stat -c%s cert.der)")"
+          echo "expected_hash=$(sha256sum cert.der | cut -d' ' -f1)"
+
+      - name: Verify APK signature
+        run: |
+          APK=$(find app/build/outputs/apk/release -name '*.apk' | head -n 1)
+          test -n "$APK"
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -n 1)
+          "$APKSIGNER" verify --print-certs "$APK"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: KernelSU-a5560-signed
+          path: manager/app/build/outputs/apk/release/*.apk

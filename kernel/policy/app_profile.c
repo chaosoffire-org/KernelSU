@@ -14,6 +14,7 @@
 
 #include "policy/allowlist.h"
 #include "policy/app_profile.h"
+#include "policy/restricted_caps.h"
 #include "klog.h" // IWYU pragma: keep
 #include "selinux/selinux.h"
 #include "infra/su_mount_ns.h"
@@ -199,8 +200,23 @@ int escape_with_root_profile(void)
         memcpy(&cred->cap_ambient, &profile->capabilities.effective, sizeof(cred->cap_ambient));
     }
 
+#if IS_ENABLED(CONFIG_KSU_RESTRICTED_ROOT)
+    /* A profile may ask for networking/BPF, never for brick/kernel-R/W caps. */
+    ksu_clamp_brick_caps(&cred->cap_effective);
+    ksu_clamp_brick_caps(&cred->cap_permitted);
+    ksu_clamp_brick_caps(&cred->cap_bset);
+    ksu_clamp_brick_caps(&cred->cap_inheritable);
+    ksu_clamp_brick_caps(&cred->cap_ambient);
+#endif
+
     setup_groups(profile, cred);
+#if IS_ENABLED(CONFIG_KSU_RESTRICTED_ROOT)
+    /* The block-device guard is scoped to this domain; do not let a profile
+     * move the root shell out of it. */
+    setup_selinux(KERNEL_SU_CONTEXT, cred);
+#else
     setup_selinux(profile->selinux_domain, cred);
+#endif
 
     commit_creds(cred);
 

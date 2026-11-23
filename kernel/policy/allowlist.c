@@ -22,6 +22,7 @@
 #include "runtime/ksud_boot.h"
 #include "selinux/selinux.h"
 #include "policy/allowlist.h"
+#include "policy/restricted_caps.h"
 #include "manager/manager_identity.h"
 #include "infra/su_mount_ns.h"
 #include "feature/shell_su_adb_only.h"
@@ -46,6 +47,9 @@ static void __init init_default_profiles()
     default_root_profile.gid = 0;
     default_root_profile.groups_count = 1;
     default_root_profile.groups[0] = 0;
+#if IS_ENABLED(CONFIG_KSU_RESTRICTED_ROOT)
+    ksu_clamp_default_caps(&full_cap);
+#endif
     memcpy(&default_root_profile.capabilities.effective, &full_cap,
            sizeof(default_root_profile.capabilities.effective));
     default_root_profile.namespaces = KSU_NS_INHERITED;

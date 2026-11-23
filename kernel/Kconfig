@@ -43,4 +43,28 @@ config KSU_X86_PATCH_SYSCALL_DISPATCHER
 	  Dynamically patch x64's hardened syscall dispatcher to support syscall hooks. This is a
 	  replacement for a kernel source code patch, and is useful for x86_64 LKM mode.
 
+config KSU_CVE_2026_98260_GUARD
+	bool "Deny per-thread CPU timers (CVE-2026-98260)"
+	depends on KSU
+	default y
+	help
+	  Intercept timer_create(2) and refuse CLOCK_THREAD_CPUTIME_ID for every
+	  process once KernelSU is loaded. The syscall entry is a clang-built C
+	  function because arm64 kCFI checks indirect-call targets; the policy
+	  is a clockid comparison that also covers encoded per-thread CPU clocks.
+	  The loader runs before this module. Mitigation, not a kernel fix: a
+	  per-thread timer armed before load is not removed.
+
+config KSU_RESTRICTED_ROOT
+	bool "Restrict KSU root: no block writes, no module load"
+	depends on KSU
+	default y
+	help
+	  In the KSU SELinux domain, deny opening block devices for write,
+	  deny write/mmap(PROT_WRITE) on them, and deny init_module()/
+	  finit_module(). Normal Android (vold, update_engine, OTA) is not in
+	  that domain and is unaffected. ksud also drops the corresponding
+	  capabilities before exec'ing a su shell. This prevents a root shell
+	  from flashing a boot image or loading a module to obtain kernel R/W.
+
 endmenu

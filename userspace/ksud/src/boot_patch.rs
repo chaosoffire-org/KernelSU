@@ -201,6 +201,7 @@ mod android {
     }
 
     pub(super) fn flash_partition(partition: &str, data: &[u8]) -> Result<()> {
+        crate::lockdown::deny_flash()?;
         let mut blk = std::fs::OpenOptions::new()
             .write(true)
             .truncate(false)
@@ -912,6 +913,7 @@ pub fn patch(args: BootPatchArgs) -> Result<()> {
 
         #[cfg(target_os = "android")]
         if flash {
+            crate::lockdown::deny_flash()?;
             println!("- Flashing new boot image");
             let bootdevice = boot_image_file.display().to_string();
             flash_partition(&bootdevice, &new_boot_bytes)?;
@@ -932,6 +934,7 @@ pub fn patch(args: BootPatchArgs) -> Result<()> {
                 format!("kernelsu_patched_{}.img", now.format("%Y%m%d_%H%M%S"))
             });
             let output_image = output_dir.join(name);
+            crate::lockdown::deny_image_write(&output_image)?;
             std::fs::write(&output_image, &new_boot_bytes).context("write out new boot failed")?;
             println!("- Output file is written to");
             println!("- {}", output_image.display().to_string().trim_matches('"'));
@@ -1080,6 +1083,7 @@ pub fn restore(args: BootRestoreArgs) -> Result<()> {
 
     #[cfg(target_os = "android")]
     if flash {
+        crate::lockdown::deny_flash()?;
         if let Some(ref source) = stock_source {
             println!("- Flashing new boot image from {}", source.display());
         } else {
@@ -1101,6 +1105,7 @@ pub fn restore(args: BootRestoreArgs) -> Result<()> {
             format!("kernelsu_restore_{}.img", now.format("%Y%m%d_%H%M%S"))
         });
         let output_image = output_dir.join(name);
+        crate::lockdown::deny_image_write(&output_image)?;
         std::fs::write(&output_image, &new_boot_bytes).context("copy out new boot failed")?;
         println!("- Output file is written to");
         println!("- {}", output_image.display().to_string().trim_matches('"'));

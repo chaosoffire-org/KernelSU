@@ -2613,6 +2613,8 @@ pub fn patch_boot(args: &BootPatchV2Args) -> Result<()> {
         );
     }
 
+    crate::lockdown::deny_image_write(&args.output)?;
+
     println!("- Reading boot image");
     let boot_data = fs::read(&args.boot)
         .with_context(|| format!("cannot read boot image {}", args.boot.display()))?;

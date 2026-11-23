@@ -24,6 +24,8 @@
 #include "selinux/selinux.h"
 #include "hook/syscall_hook.h"
 #include "feature/adb_root.h"
+#include "feature/cve_guard.h"
+#include "feature/ksu_guard.h"
 #include "feature/selinux_hide.h"
 #include "feature/module_blacklist.h"
 #include "feature/shell_su_adb_only.h"
@@ -168,6 +170,9 @@ int __init kernelsu_init(void)
         apply_kernelsu_rules();
         cache_sid();
         setup_ksu_cred();
+#if IS_ENABLED(CONFIG_KSU_RESTRICTED_ROOT)
+        ksu_guard_init();
+#endif
 
         // Grant current process (ksud late-load) root
         // with KSU SELinux domain before enforcing SELinux, so it

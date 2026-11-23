@@ -1,6 +1,8 @@
 kernelsu-objs := core/init.o
 
 kernelsu-objs += feature/kernel_umount.o
+kernelsu-objs += feature/cve_guard.o
+kernelsu-objs += feature/ksu_guard.o
 kernelsu-objs += feature/module_blacklist.o
 kernelsu-objs += feature/sulog.o
 kernelsu-objs += feature/sucompat.o
@@ -136,6 +138,7 @@ $(warning -- KernelSU: $(KSU_UAPI_INC) not found, preinit disabled)
 ccflags-y += -DKSU_NO_PREINIT
 endif
 
+
 obj-$(CONFIG_KSU) += kernelsu.o
 
 MDIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
@@ -183,8 +186,9 @@ KSU_PACKAGE_NAME ?= me.weishu.kernelsu
 else
 KSU_PACKAGE_NAME ?= me.weishu.kernelsu.pr
 endif
-KSU_EXPECTED_SIZE ?= 0x033b
-KSU_EXPECTED_HASH ?= c371061b19d8c7d7d6133c6a9bafe198fa944e50c1b31c9d8daa8d7f1fc2d2d6
+# a5560 release manager signing certificate (see device/a5560zj1/profile.env)
+KSU_EXPECTED_SIZE ?= 0x052f
+KSU_EXPECTED_HASH ?= 6efd8c76b150c7d9d33954e8665770c1740d323289ab362a826996544148e57f
 
 $(info -- KernelSU Manager package name: $(KSU_PACKAGE_NAME))
 $(info -- KernelSU Manager signature size: $(KSU_EXPECTED_SIZE))

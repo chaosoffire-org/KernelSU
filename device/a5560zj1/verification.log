@@ -1,0 +1,41 @@
+boot image : /home/chaos/workplace/a5560-firmware/firmware/boot.img
+kernel     : 38697472 bytes, ramdisk 0 bytes
+boot header: android 14.0.0, patch level 2026-10
+config     :
+  CONFIG_POSIX_TIMERS=y
+  CONFIG_POSIX_CPU_TIMERS_TASK_WORK=y
+  CONFIG_FUTEX_PI=y
+  CONFIG_MODULES=y
+  CONFIG_MODULE_SIG_FORCE=n
+  CONFIG_MODULE_SIG_PROTECT=y
+  CONFIG_MODVERSIONS=y
+  CONFIG_KPROBES=y
+  CONFIG_KALLSYMS_ALL=y
+  CONFIG_KASAN_HW_TAGS=y
+  CONFIG_ARM64_MTE=y
+  CONFIG_CFI_CLANG=y
+  CONFIG_PANIC_ON_OOPS=y
+  CONFIG_RKP=y
+  CONFIG_KDP_CRED=y
+  CONFIG_SECURITY_DEFEX=y
+  CONFIG_FIVE=y
+  CONFIG_PROCA=y
+  CONFIG_STATIC_USERMODEHELPER=y
+  CONFIG_STATIC_USERMODEHELPER_PATH=""
+recovering kallsyms (this takes a minute on a 40 MB Image)...
+symbols    : 112283
+
+CVE-2026-98260 (exec POSIX CPU timer UAF): VULNERABLE
+  - begin_new_exec @ 0xffffffc0083ab5a8..0xffffffc0083abb80
+  - call posix_cpu_timers_exit: 0xffffffc0083ab990
+  - call unshare_files: 0xffffffc0083ab8f0
+  - call set_mm_exe_file: 0xffffffc0083ab914
+  - call exec_mmap: 0xffffffc0083ab950
+  - cleanup still runs after unshare_files/exec_mmap
+CVE-2026-43499 (rtmutex GhostLock):        PATCHED
+  - remove_waiter @ 0xffffffc009116c6c..0xffffffc009116edc
+  - no SP_EL0 read before pi_lock; waiter->task used
+
+=> a runtime (no-flash) root primitive exists on this image.
+   KernelSU cannot install itself here; it must be late-loaded
+   after the exploit gives uid 0 (see device/a5560zj1/README.md).

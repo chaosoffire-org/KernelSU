@@ -70,10 +70,6 @@ fn resolve_uid(user: &str) -> Result<u32> {
         .map_err(|_| anyhow::anyhow!("Unknown user: {user}"))
 }
 
-fn set_selinux_context(context: &str) -> Result<()> {
-    std::fs::write("/proc/thread-self/attr/current", context)?;
-    Ok(())
-}
 
 fn wrap_tty(fd: c_int) {
     let inner_fn = move || -> Result<()> {
@@ -244,7 +240,9 @@ pub fn root_shell() -> Result<()> {
     let mount_master = matches.opt_present("M");
     let use_fd_wrapper = !matches.opt_present("W");
     let ksu_no_new_privs = matches.opt_present("ksu-no-new-privs");
-    let selinux_context = matches.opt_str("Z");
+    if matches.opt_present("Z") {
+        bail!("SELinux context changes are disabled for restricted root");
+    }
 
     let groups = matches
         .opt_strs("G")
@@ -347,9 +345,6 @@ pub fn root_shell() -> Result<()> {
 
     if identity_requested {
         set_identity(uid, gid, &groups)?;
-    }
-    if let Some(context) = selinux_context.as_deref() {
-        set_selinux_context(context).with_context(|| format!("setcontext {context}"))?;
     }
     Err(command.exec().into())
 }
