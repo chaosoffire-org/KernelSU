@@ -30,16 +30,12 @@ jobs:
           distribution: temurin
           java-version: "21"
 
-      - name: Install SDK, NDK and CMake
+      - name: Show preinstalled SDK
         run: |
-          SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -name sdkmanager | head -n 1)
-          test -x "$SDKMANAGER"
-          yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
-          "$SDKMANAGER" --install \
-            "platforms;android-37" \
-            "build-tools;37.0.0" \
-            "ndk;29.0.14206865" \
-            "cmake;3.22.1"
+          ls "$ANDROID_HOME/platforms" || true
+          ls "$ANDROID_HOME/build-tools" || true
+          ls "$ANDROID_HOME/ndk" || true
+          ls "$ANDROID_HOME/cmake" || true
 
       - name: Write signing config
         env:
