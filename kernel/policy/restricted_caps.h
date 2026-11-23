@@ -20,6 +20,7 @@ static inline void ksu_clamp_brick_caps(kernel_cap_t *caps)
 	KSU_CAP_DROP(caps, CAP_MAC_OVERRIDE);
 	KSU_CAP_DROP(caps, CAP_MAC_ADMIN);
 	KSU_CAP_DROP(caps, CAP_SETPCAP);
+	KSU_CAP_DROP(caps, CAP_SYS_PTRACE);
 }
 
 /* Default su (no profile): also keep tracing/checkpoint capabilities out. */

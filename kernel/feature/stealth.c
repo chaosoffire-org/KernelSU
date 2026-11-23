@@ -30,6 +30,7 @@
 
 #include "arch.h"
 #include "feature/stealth.h"
+#include "infra/symbol_resolver.h"
 #include "hook/syscall_hook.h"
 #include "manager/manager_identity.h"
 #include "selinux/selinux.h"
@@ -171,8 +172,35 @@ int ksu_stealth_init(void)
 	 * for a built-in build, which never appears in /proc/modules anyway.
 	 */
 	if (THIS_MODULE) {
-		list_del_init(&THIS_MODULE->list);
-		pr_info("ksu_stealth: module detached from /proc/modules\n");
+		struct mutex *module_mutex;
+		void (*module_lock)(struct mutex *) = NULL;
+		void (*module_unlock)(struct mutex *) = NULL;
+		bool locked = false;
+
+		/*
+		 * /proc/modules walks the global modules list. Remove this module
+		 * with the RCU primitive and take module_mutex when it can be
+		 * resolved, matching free_module()'s list_del_rcu() +
+		 * synchronize_rcu() discipline. list_del_init() is not safe here:
+		 * it rewrites prev/next while an RCU reader may still walk the list.
+		 */
+		module_mutex = ksu_resolve_symbol_for_functable_hook("module_mutex");
+		if (module_mutex) {
+			module_lock = (void (*)(struct mutex *))ksu_resolve_symbol_for_functable_hook("mutex_lock");
+			module_unlock = (void (*)(struct mutex *))ksu_resolve_symbol_for_functable_hook("mutex_unlock");
+		}
+		if (module_mutex && module_lock && module_unlock) {
+			module_lock(module_mutex);
+			locked = true;
+		}
+		list_del_rcu(&THIS_MODULE->list);
+		synchronize_rcu();
+		if (locked)
+			module_unlock(module_mutex);
+		if (locked)
+			pr_info("ksu_stealth: module detached from /proc/modules (module_mutex)\n");
+		else
+			pr_warn("ksu_stealth: module detached without module_mutex, RCU grace elapsed\n");
 	}
 
 	if (!ksu_syscall_table) {

@@ -10,7 +10,10 @@
  *   - opening a block device for write is denied (file_open);
  *   - write()/mmap(PROT_WRITE) on a block device is denied as backstop;
  *   - init_module()/finit_module() are denied, so a su shell cannot load a
- *     module to obtain kernel R/W.
+ *     module to obtain kernel R/W;
+ *   - ptrace/process_vm_writev/pidfd_getfd/io_uring and kexec are denied,
+ *     closing the cross-task paths that would let a restricted task borrow a
+ *     privileged process's credentials.
  * Capabilities are also dropped by ksud before exec; see userspace/ksud.
  *
  * This is a foot-gun guard against a root shell bricking the device, not a
@@ -129,20 +132,157 @@ static long ksu_guard_finit_module(const struct pt_regs *regs)
 	return ksu_guard_orig_finit_module(regs);
 }
 
+static syscall_fn_t ksu_guard_orig_ptrace;
+static syscall_fn_t ksu_guard_orig_process_vm_writev;
+static syscall_fn_t ksu_guard_orig_pidfd_getfd;
+static syscall_fn_t ksu_guard_orig_io_uring_setup;
+static syscall_fn_t ksu_guard_orig_io_uring_enter;
+static syscall_fn_t ksu_guard_orig_io_uring_register;
+static syscall_fn_t ksu_guard_orig_kexec_load;
+static syscall_fn_t ksu_guard_orig_kexec_file_load;
+
+static long ksu_guard_ptrace(const struct pt_regs *regs)
+{
+	if (ksu_guard_is_restricted()) {
+		pr_warn_ratelimited("ksu_guard: denied ptrace\n");
+		return -EPERM;
+	}
+	if (unlikely(!ksu_guard_orig_ptrace))
+		return -ENOSYS;
+	return ksu_guard_orig_ptrace(regs);
+}
+
+static long ksu_guard_process_vm_writev(const struct pt_regs *regs)
+{
+	if (ksu_guard_is_restricted()) {
+		pr_warn_ratelimited("ksu_guard: denied process_vm_writev\n");
+		return -EPERM;
+	}
+	if (unlikely(!ksu_guard_orig_process_vm_writev))
+		return -ENOSYS;
+	return ksu_guard_orig_process_vm_writev(regs);
+}
+
+static long ksu_guard_pidfd_getfd(const struct pt_regs *regs)
+{
+	if (ksu_guard_is_restricted()) {
+		pr_warn_ratelimited("ksu_guard: denied pidfd_getfd\n");
+		return -EPERM;
+	}
+	if (unlikely(!ksu_guard_orig_pidfd_getfd))
+		return -ENOSYS;
+	return ksu_guard_orig_pidfd_getfd(regs);
+}
+
+static long ksu_guard_io_uring_setup(const struct pt_regs *regs)
+{
+	if (ksu_guard_is_restricted()) {
+		pr_warn_ratelimited("ksu_guard: denied io_uring_setup\n");
+		return -EPERM;
+	}
+	if (unlikely(!ksu_guard_orig_io_uring_setup))
+		return -ENOSYS;
+	return ksu_guard_orig_io_uring_setup(regs);
+}
+
+static long ksu_guard_io_uring_enter(const struct pt_regs *regs)
+{
+	if (ksu_guard_is_restricted()) {
+		pr_warn_ratelimited("ksu_guard: denied io_uring_enter\n");
+		return -EPERM;
+	}
+	if (unlikely(!ksu_guard_orig_io_uring_enter))
+		return -ENOSYS;
+	return ksu_guard_orig_io_uring_enter(regs);
+}
+
+static long ksu_guard_io_uring_register(const struct pt_regs *regs)
+{
+	if (ksu_guard_is_restricted()) {
+		pr_warn_ratelimited("ksu_guard: denied io_uring_register\n");
+		return -EPERM;
+	}
+	if (unlikely(!ksu_guard_orig_io_uring_register))
+		return -ENOSYS;
+	return ksu_guard_orig_io_uring_register(regs);
+}
+
+static long ksu_guard_kexec_load(const struct pt_regs *regs)
+{
+	if (ksu_guard_is_restricted()) {
+		pr_warn_ratelimited("ksu_guard: denied kexec_load\n");
+		return -EPERM;
+	}
+	if (unlikely(!ksu_guard_orig_kexec_load))
+		return -ENOSYS;
+	return ksu_guard_orig_kexec_load(regs);
+}
+
+static long ksu_guard_kexec_file_load(const struct pt_regs *regs)
+{
+	if (ksu_guard_is_restricted()) {
+		pr_warn_ratelimited("ksu_guard: denied kexec_file_load\n");
+		return -EPERM;
+	}
+	if (unlikely(!ksu_guard_orig_kexec_file_load))
+		return -ENOSYS;
+	return ksu_guard_orig_kexec_file_load(regs);
+}
+
+static void ksu_guard_install_syscall(int nr, syscall_fn_t hook, syscall_fn_t *orig, const char *name)
+{
+	if (!ksu_syscall_table || nr < 0 || nr >= __NR_syscalls)
+		return;
+
+	*orig = READ_ONCE(ksu_syscall_table[nr]);
+	ksu_syscall_table_hook(nr, hook, NULL);
+	if (READ_ONCE(ksu_syscall_table[nr]) != hook) {
+		pr_err("ksu_guard: %s hook not installed\n", name);
+		*orig = NULL;
+	}
+}
+
 static void ksu_guard_hook_module_load(void)
 {
 	if (!ksu_syscall_table)
 		return;
 
-	ksu_guard_orig_init_module = READ_ONCE(ksu_syscall_table[__NR_init_module]);
-	ksu_syscall_table_hook(__NR_init_module, ksu_guard_init_module, NULL);
-	if (READ_ONCE(ksu_syscall_table[__NR_init_module]) != ksu_guard_init_module)
-		pr_err("ksu_guard: init_module hook not installed\n");
-
-	ksu_guard_orig_finit_module = READ_ONCE(ksu_syscall_table[__NR_finit_module]);
-	ksu_syscall_table_hook(__NR_finit_module, ksu_guard_finit_module, NULL);
-	if (READ_ONCE(ksu_syscall_table[__NR_finit_module]) != ksu_guard_finit_module)
-		pr_err("ksu_guard: finit_module hook not installed\n");
+	ksu_guard_install_syscall(__NR_init_module, ksu_guard_init_module,
+				  &ksu_guard_orig_init_module, "init_module");
+	ksu_guard_install_syscall(__NR_finit_module, ksu_guard_finit_module,
+				  &ksu_guard_orig_finit_module, "finit_module");
+#ifdef __NR_ptrace
+	ksu_guard_install_syscall(__NR_ptrace, ksu_guard_ptrace,
+				  &ksu_guard_orig_ptrace, "ptrace");
+#endif
+#ifdef __NR_process_vm_writev
+	ksu_guard_install_syscall(__NR_process_vm_writev, ksu_guard_process_vm_writev,
+				  &ksu_guard_orig_process_vm_writev, "process_vm_writev");
+#endif
+#ifdef __NR_pidfd_getfd
+	ksu_guard_install_syscall(__NR_pidfd_getfd, ksu_guard_pidfd_getfd,
+				  &ksu_guard_orig_pidfd_getfd, "pidfd_getfd");
+#endif
+#ifdef __NR_io_uring_setup
+	ksu_guard_install_syscall(__NR_io_uring_setup, ksu_guard_io_uring_setup,
+				  &ksu_guard_orig_io_uring_setup, "io_uring_setup");
+#endif
+#ifdef __NR_io_uring_enter
+	ksu_guard_install_syscall(__NR_io_uring_enter, ksu_guard_io_uring_enter,
+				  &ksu_guard_orig_io_uring_enter, "io_uring_enter");
+#endif
+#ifdef __NR_io_uring_register
+	ksu_guard_install_syscall(__NR_io_uring_register, ksu_guard_io_uring_register,
+				  &ksu_guard_orig_io_uring_register, "io_uring_register");
+#endif
+#ifdef __NR_kexec_load
+	ksu_guard_install_syscall(__NR_kexec_load, ksu_guard_kexec_load,
+				  &ksu_guard_orig_kexec_load, "kexec_load");
+#endif
+#ifdef __NR_kexec_file_load
+	ksu_guard_install_syscall(__NR_kexec_file_load, ksu_guard_kexec_file_load,
+				  &ksu_guard_orig_kexec_file_load, "kexec_file_load");
+#endif
 }
 
 int ksu_guard_init(void)
@@ -169,7 +309,7 @@ int ksu_guard_init(void)
 
 	ksu_guard_hook_module_load();
 
-	pr_info("ksu_guard: restricted root active (no block writes, no module load)\n");
+	pr_info("ksu_guard: restricted root active (no block writes, module load, ptrace, io_uring or kexec)\n");
 	return 0;
 }
 

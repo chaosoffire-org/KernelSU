@@ -32,9 +32,10 @@ nothing is written to any partition, and a reboot clears it.
 - **CVE trigger guard (C):** `timer_create` denies `CLOCK_THREAD_CPUTIME_ID`
   and encoded per-thread CPU clocks for every process, installed before root.
 - **Restricted root (C):** app profiles carry the capability mask; the kernel
-  clamps `SYS_ADMIN/SYS_MODULE/SYS_RAWIO/MKNOD/MAC_*/SETPCAP` out of every
-  profile and forces the KSU SELinux domain. `ksu_guard` denies block-device
-  write opens/writes/mmap and `init_module/finit_module` for the KSU domain
+  clamps `SYS_ADMIN/SYS_MODULE/SYS_RAWIO/MKNOD/MAC_*/SETPCAP/SYS_PTRACE` out
+  of every profile and forces the KSU SELinux domain. `ksu_guard` denies
+  block-device write opens/writes/mmap, `init_module/finit_module`,
+  `ptrace/process_vm_writev/pidfd_getfd/io_uring` and `kexec` for the KSU domain
   **and for any uid-0 task that lacks `CAP_SYS_ADMIN`/`CAP_SYS_MODULE`**, so a
   `setcon` escape from the permissive KSU domain does not bypass it. init/vold
   keep both capabilities and are unaffected; the loader shell is the trust

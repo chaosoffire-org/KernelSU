@@ -76,7 +76,8 @@ config KSU_RESTRICTED_ROOT
 	default y
 	help
 	  Deny opening block devices for write, write/mmap(PROT_WRITE) on them,
-	  and init_module()/finit_module() for the KSU domain and for any uid-0
+	  and init_module()/finit_module(), ptrace, process_vm_writev,
+	  pidfd_getfd, io_uring and kexec for the KSU domain and for any uid-0
 	  task that lacks CAP_SYS_ADMIN/CAP_SYS_MODULE. That capability check
 	  survives a setcon escape from the permissive KSU domain. init, vold
 	  and update_engine keep both capabilities and are unaffected; the
