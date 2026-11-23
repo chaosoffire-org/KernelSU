@@ -31,6 +31,7 @@
 #include "arch.h"
 #include "feature/stealth.h"
 #include "hook/syscall_hook.h"
+#include "manager/manager_identity.h"
 #include "selinux/selinux.h"
 #include "klog.h" // IWYU pragma: keep
 
@@ -103,11 +104,15 @@ static bool ksu_stealth_should_hide(const struct pt_regs *regs)
 {
 	const char __user *filename = (const char __user *)PT_REGS_PARM2(regs);
 	char path[KSU_STEALTH_PATH_MAX];
+	uid_t uid = current_uid().val;
 	long len;
 
-	if (is_ksu_domain())
-		return false;
 	if (!filename)
+		return false;
+	/* Only non-su apps: system processes, su/ksud and the manager are exempt. */
+	if (uid < 10000)
+		return false;
+	if (is_ksu_domain() || is_manager())
 		return false;
 
 	len = strncpy_from_user(path, (const char __user *)untagged_addr((unsigned long)filename),

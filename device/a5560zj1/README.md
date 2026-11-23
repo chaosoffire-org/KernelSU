@@ -34,16 +34,17 @@ nothing is written to any partition, and a reboot clears it.
   profile and forces the KSU SELinux domain. `ksu_guard` additionally denies
   block-device write opens/writes/mmap and `init_module/finit_module` in that
   domain. Default su has no mount, no module load, no raw block writes.
-- **Stealth (C, `KSU_STEALTH`):** for processes outside the KSU domain,
-  `openat/openat2/newfstatat/faccessat/faccessat2/readlinkat/statx` return
-  `-ENOENT` for `/data/adb/ksu`, `/data/adb/modules`,
-  `/sys/module/kernelsu` and the manager directory under `/data/app/`. The
+- **Stealth (C, `KSU_STEALTH`):** for app uids (>= 10000) outside the KSU
+  domain, `openat/openat2/newfstatat/faccessat/faccessat2/readlinkat/statx`
+  return `-ENOENT` for `/data/adb/ksu`, `/data/adb/modules`,
+  `/sys/module/kernelsu` and the manager directory under `/data/app/`. su,
+  ksud and the manager app are exempt; system processes are untouched. The
   module is detached from `/proc/modules` (so it cannot be unloaded until
   reboot).
 
 Known residuals: relative-path lookups, `getdents`/readdir listings,
-`/proc/kallsyms`, 32-bit compat tables, and the manager package in
-`PackageManager`. Kernel modules cannot hide the app list; that requires a
+`/proc/kallsyms`, 32-bit compat tables, the manager package in
+`PackageManager`, and non-app callers such as adb shell (by design). Kernel modules cannot hide the app list; that requires a
 framework hook. No claim of complete undetectability.
 
 ## Build (Samsung OSRC)
