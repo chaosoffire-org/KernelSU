@@ -343,7 +343,10 @@ fun uninstallPermanently(
     // so this root shell survives long enough to reboot; uninstall it from
     // system settings afterwards if desired.
     val result = flashWithIO(
-        "rm -rf /data/adb/* /data/adb/.[!.]* /metadata/vold/ksu /metadata/watchdog/ksu /metadata/ksu 2>/dev/null; sync; reboot",
+        "if [ -e /data/adb/magisk ] || [ -e /data/adb/magisk.db ]; then " +
+            "echo 'refusing: Magisk data present'; exit 1; fi; " +
+            "rm -rf /data/adb /metadata/vold/ksu /metadata/watchdog/ksu /metadata/ksu; " +
+            "sync; reboot",
         onStdout,
         onStderr
     )

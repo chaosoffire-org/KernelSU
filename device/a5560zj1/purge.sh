@@ -21,15 +21,10 @@ for p in ksud ksud_daemon; do
     fi
 done
 
-rm -rf /data/adb/ksu \
-       /data/adb/modules \
-       /data/adb/modules_update \
-       /data/adb/metamodule \
-       /data/adb/ksud \
-       /data/adb/post-fs-data.d \
-       /data/adb/service.d
-
-rmdir /data/adb 2>/dev/null || true
+rm -rf /data/adb \
+       /metadata/vold/ksu \
+       /metadata/watchdog/ksu \
+       /metadata/ksu
 
 pm uninstall me.weishu.kernelsu >/dev/null 2>&1 || \
     pm clear me.weishu.kernelsu >/dev/null 2>&1 || true

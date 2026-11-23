@@ -82,10 +82,10 @@ the `KEYSTORE` secret.
 
 ## Remove everything
 
-`purge.sh` (as root) removes KSU-owned paths under `/data/adb`, removes
-`/data/adb` if it is then empty, removes the manager app, and reboots. The
-kernel module cannot be unloaded (`list_del_init` + `modules_disabled`), so the
-reboot is the actual reset. `/data/misc/adb` (ADB keys) is not touched; the
+`purge.sh` (as root) removes `/data/adb` entirely, the KSU preinit dirs under
+`/metadata`, and the manager app, then reboots. That matches a stock device,
+where `/data/adb` does not exist. The kernel module cannot be unloaded
+(`list_del_init` + `modules_disabled`), so the reboot is the actual reset. `/data/misc/adb` (ADB keys) is not touched; the
 script refuses if Magisk data is present.
 
 Moving `/data/adb` into a private directory is not implemented: the kernel
