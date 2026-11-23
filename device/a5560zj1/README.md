@@ -80,7 +80,21 @@ the `KEYSTORE` secret.
 - TProxy/iptables and TC/XDP eBPF are available in this kernel; `NF_TABLES` is
   not, and sing-box's eBPF inbound is experimental/`with_ebpf`.
 
+## Remove everything
+
+`purge.sh` (as root) removes KSU-owned paths under `/data/adb`, removes
+`/data/adb` if it is then empty, removes the manager app, and reboots. The
+kernel module cannot be unloaded (`list_del_init` + `modules_disabled`), so the
+reboot is the actual reset. `/data/misc/adb` (ADB keys) is not touched; the
+script refuses if Magisk data is present.
+
+Moving `/data/adb` into a private directory is not implemented: the kernel
+opens `/data/adb/ksud` with `filp_open()` in the **calling app's** mount
+namespace, so a mount visible only to ksud's private namespace breaks su. A
+global bind mount or a symlink to a private directory would keep the paths
+working but needs namespace/SELinux testing on the device.
+
 ## Files
 
 `verify-boot-image.py`, `preflight.sh`, `post-load-check.sh`, `harden.sh`,
-this README.
+`purge.sh`, this README.
