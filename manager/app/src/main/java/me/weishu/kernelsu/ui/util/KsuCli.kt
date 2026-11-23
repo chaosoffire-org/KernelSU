@@ -337,7 +337,16 @@ fun restoreBoot(
 fun uninstallPermanently(
     onStdout: (String) -> Unit, onStderr: (String) -> Unit
 ): FlashResult {
-    val result = flashWithIO("${getKsuDaemonPath()} uninstall --package-name ${BuildConfig.APPLICATION_ID}", onStdout, onStderr)
+    // Late-load profile: there is no boot image to restore and the kernel
+    // module cannot be unloaded. Remove every root-owned path and reboot; the
+    // reboot drops the module. The manager app is deliberately left installed
+    // so this root shell survives long enough to reboot; uninstall it from
+    // system settings afterwards if desired.
+    val result = flashWithIO(
+        "rm -rf /data/adb/* /data/adb/.[!.]* /metadata/vold/ksu /metadata/watchdog/ksu /metadata/ksu 2>/dev/null; sync; reboot",
+        onStdout,
+        onStderr
+    )
     return FlashResult(result)
 }
 
