@@ -29,6 +29,7 @@
 #include "feature/selinux_hide.h"
 #include "feature/module_blacklist.h"
 #include "feature/shell_su_adb_only.h"
+#include "feature/stealth.h"
 #include "infra/symbol_resolver.h"
 #include "preinit/preinit.h"
 
@@ -173,6 +174,8 @@ int __init kernelsu_init(void)
 #if IS_ENABLED(CONFIG_KSU_RESTRICTED_ROOT)
         ksu_guard_init();
 #endif
+
+        ksu_stealth_init();
 
         // Grant current process (ksud late-load) root
         // with KSU SELinux domain before enforcing SELinux, so it

@@ -55,6 +55,20 @@ config KSU_CVE_2026_98260_GUARD
 	  The loader runs before this module. Mitigation, not a kernel fix: a
 	  per-thread timer armed before load is not removed.
 
+config KSU_STEALTH
+	bool "Hide KernelSU artifacts from non-KSU processes"
+	depends on KSU
+	default y
+	help
+	  Hide KernelSU paths from processes outside the KSU SELinux domain.
+	  openat(2), openat2(2), newfstatat(2), faccessat(2), faccessat2(2),
+	  readlinkat(2) and statx(2) return -ENOENT for /data/adb/ksu,
+	  /data/adb/modules,
+	  /sys/module/kernelsu and the manager APK directory under /data/app.
+	  The module is also detached from /proc/modules, which makes unloading
+	  impossible for the rest of the boot. This does not hide the manager
+	  package from PackageManager (userspace) and does not touch kallsyms.
+
 config KSU_RESTRICTED_ROOT
 	bool "Restrict KSU root: no block writes, no module load"
 	depends on KSU

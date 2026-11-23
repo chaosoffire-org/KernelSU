@@ -17,6 +17,9 @@ need() {
 
 need "cve_guard: per-thread CPU timers denied" "CVE-2026-98260 trigger guard is live"
 need "ksu_guard: restricted root active" "restricted-root guard is live"
+if ! dmesg | grep -q "ksu_stealth: path hiding active"; then
+    echo "post-load: WARN stealth path hiding is not active" >&2
+fi
 
 if [ -e /data/adb/ksu/no-flash ]; then
     echo "post-load: OK   no-flash marker present"
